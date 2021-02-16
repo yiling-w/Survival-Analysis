@@ -1,0 +1,13 @@
+*Predicted survival code;
+
+proc phreg data = mydata plots(overlay)=survival;
+model time*event(0) = Age HTN platelets/ rl ties = efron;
+baseline out = pred1 survival = _all_ ;
+run;
+
+
+*Observed survival code;
+
+proc lifetest data=mydata outsurv=km1 plots=s;
+time time*event(0);
+run;
