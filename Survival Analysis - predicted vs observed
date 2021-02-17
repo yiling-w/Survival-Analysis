@@ -1,13 +1,42 @@
-*Predicted survival code;
-
-proc phreg data = mydata plots(overlay)=survival;
-model time*event(0) = Age HTN platelets/ rl ties = efron;
-baseline out = pred1 survival = _all_ ;
+**Predicted survival;
+proc phreg data = mydata;
+model eventyrs*censor(1,2) = pce / rl;
+output out=out survival=P_SURVIVAL;
 run;
 
+**Observed survival;
+proc lifetest data=mydata outsurv=km1;
+time eventyrs*censor(1,2);
+run;
 
-*Observed survival code;
+/* To construct the decile calibration plot, identify deciles of the predicted prob. */
+proc rank data=out out=SurvDecile groups=10;
+   var P_SURVIVAL;
+   ranks Decile;
+run;
 
-proc lifetest data=mydata outsurv=km1 plots=s;
-time time*event(0);
+proc sort data=SurvDecile; by eventyrs; run;
+proc sort data=km1; by eventyrs; run;
+data overall_pce;
+   merge km1 SurvDecile;
+   by eventyrs;
+   risk=1-survival;
+   p_risk=1-p_survival;
+run;
+
+proc means data=overall_pce noprint;
+   class Decile;
+   types Decile;
+   var risk p_risk;
+   output out=SurvDecileOut mean=yMean PredProbMean;
+run;
+
+title "Calibration Plot";
+proc sgplot data=SurvDecileOut noautolegend aspect=1;
+   lineparm x=0 y=0 slope=1 / lineattrs=(color=grey pattern=dash); /** plot the reference line **/
+   *loess x=PredProbMean y=yMean;  /* if you want a smoother based on deciles */
+   *series x=PredProbMean y=yMean;  /* if you to connect the deciles */
+   scatter x=PredProbMean y=yMean;
+   yaxis label="Observed Probability of Outcome";
+   xaxis label="Predicted Probability of Outcome";
 run;
